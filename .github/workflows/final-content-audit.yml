@@ -1,0 +1,54 @@
+name: Final content audit
+
+on:
+  push:
+    paths:
+      - '.github/workflows/final-content-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Correct titles and chronology
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          s = s.replace('Yerbabuena', 'Hierbabuena')
+          s = s.replace(
+              '<strong>Hierbabuena</strong> — dramaturgia documental. Gorguz Teatro; dirección de Alberto Ontiveros. Festival de Teatro Nuevo León 2024; cierre del 34º Encuentro Estatal de Teatro de Nuevo León; seleccionada en Puestas en Escena CONARTE y en coproducción con la Compañía Nacional de Teatro mediante En compañía de La Compañía; funciones UANL. <em>2024–2025.</em>',
+              '<strong>Hierbabuena</strong> — dramaturgia documental. Gorguz Teatro; dirección de Alberto Ontiveros. Estrenada en 2024; Festival de Teatro Nuevo León 2024; cierre del 34º Encuentro Estatal de Teatro de Nuevo León; seleccionada en Puestas en Escena CONARTE y en coproducción con la Compañía Nacional de Teatro mediante En compañía de La Compañía; funciones UANL. <em>2024–2025.</em>'
+          )
+          s = s.replace(
+              '<strong>Hierbabuena</strong> — Antología de Dramaturgia Joven / DramaLeón, Facultad de Artes Escénicas, UANL. <em>2025.</em>',
+              '<strong>Hierbabuena</strong> — publicada en <em>DramaLeón</em>, Antología de Dramaturgia Joven, Facultad de Artes Escénicas, UANL. <em>2025.</em>'
+          )
+          s = s.replace(
+              'alt="Actuación — ¿Y si no hubiera un pequeño lugar para mí en este mundo?"',
+              'alt="Actuación — ¿Y si no hubiera un pequeño lugar para mí en este mundo? — 2017"'
+          )
+          s = s.replace(
+              '<figcaption>Actuación · ¿Y si no hubiera un pequeño lugar para mí en este mundo?</figcaption>',
+              '<figcaption>Actuación · ¿Y si no hubiera un pequeño lugar para mí en este mundo? · 2017</figcaption>'
+          )
+
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit corrections
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Correct final portfolio chronology and titles"
+            git push
+          fi
