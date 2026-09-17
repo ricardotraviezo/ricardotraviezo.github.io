@@ -1,0 +1,115 @@
+name: Editorial prune portfolio
+
+on:
+  push:
+    paths:
+      - '.github/workflows/editorial-prune.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tighten portfolio copy and credits
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          # Correct title spelling everywhere.
+          s = s.replace('Hierbabuena', 'Yerbabuena')
+
+          # Make the collapsed CV read as an edited portfolio, not an exhaustive résumé.
+          s = s.replace('<summary>Trayectoria completa</summary>', '<summary>Créditos seleccionados</summary>')
+
+          def replace_cv_section(label, items_html):
+              global s
+              pattern = re.compile(
+                  rf'<div class="cv-section"><div class="cv-label">{re.escape(label)}</div><ul class="cv-list">.*?</ul></div>',
+                  re.S
+              )
+              replacement = f'<div class="cv-section"><div class="cv-label">{label}</div><ul class="cv-list">{items_html}</ul></div>'
+              s, n = pattern.subn(replacement, s, count=1)
+              if n != 1:
+                  raise SystemExit(f'Could not replace section: {label}')
+
+          replace_cv_section('Dirección escénica / creación',
+              '<li><strong>Incendios</strong> — Wajdi Mouawad. Dirección y diseño escénico. Escena Protocolo, Monterrey. <em>2026.</em></li>'
+              '<li><strong>Macbeth.exe</strong> — dirección y adaptación a partir de William Shakespeare. <em>2025.</em></li>'
+              '<li><strong>Frágil</strong> — dirección / creación escénica. <em>2025.</em></li>'
+              '<li><strong>Hamlet 2049</strong> — dirección y adaptación a partir de William Shakespeare. <em>2023.</em></li>'
+              '<li><strong>Riot 2.0</strong> — dirección / creación. <em>2020–2023.</em></li>'
+              '<li><strong>El amor de las luciérnagas</strong> — dirección. <em>2019.</em></li>'
+              '<li><strong>Caricias y ausencias</strong> — dirección. <em>2019.</em></li>'
+              '<li><strong>Ravioles Negros</strong> — dirección. <em>2018.</em></li>'
+              '<li><strong>Fractales</strong> — de Alejandro Ricaño. Dirección. <em>2017.</em></li>'
+          )
+
+          replace_cv_section('Dramaturgia / escritura',
+              '<li><strong>Yerbabuena</strong> — dramaturgia documental. Gorguz Teatro; dirección de Alberto Ontiveros. Estrenada en 2024; circulación por Festival de Teatro Nuevo León, Encuentro Estatal de Teatro de Nuevo León, CONARTE, UANL y Compañía Nacional de Teatro. <em>2024–2025.</em></li>'
+              '<li><strong>La manera más perversa</strong> — dramaturgia. <em>2019.</em></li>'
+              '<li><strong>No Amarás</strong> — dramaturgia. <em>2018.</em></li>'
+              '<li><strong>Muerte en Intermitencia 1, 2, 3</strong> — dramaturgia. <em>2014.</em></li>'
+          )
+
+          replace_cv_section('Publicaciones',
+              '<li><strong>Yerbabuena</strong> — publicada en <em>DramaLeón</em>, Antología de Dramaturgia Joven, Facultad de Artes Escénicas, UANL. <em>2025.</em></li>'
+              '<li><strong>Libros de carne y hueso: El Caimán de Sanare</strong> — revista <em>Paso de Gato</em>, núm. 56. <em>2014.</em></li>'
+          )
+
+          replace_cv_section('Actuación · Teatro',
+              '<li><strong>El Ejército Iluminado</strong> — David Toscana, Gorguz Teatro, dirección Alberto Ontiveros. <em>2018–2024.</em></li>'
+              '<li><strong>Números rojos</strong> — actuación. <em>2015–2016.</em></li>'
+              '<li><strong>De ouijas y altas tecnologías</strong> — actuación. <em>2013.</em></li>'
+              '<li><strong>Inmolación</strong> — actuación. <em>2012.</em></li>'
+              '<li><strong>El juicio de Afrodita y Paris</strong> — participación con La Fura dels Baus.</li>'
+          )
+
+          replace_cv_section('Cine / televisión',
+              '<li><strong>Sierra Madre</strong> — actor, episodio 8. HBO. <em>2022.</em></li>'
+              '<li><strong>Muerte al verano</strong> — Pablo. Largometraje. <em>2019.</em></li>'
+              '<li><strong>Goldfish</strong> — actor. Cortometraje con selecciones en festivales de Cape Town, Durban, Playa del Carmen y Monterrey.</li>'
+          )
+
+          # Remove duplicated pedagogical and institutional inventory; those ideas already live elsewhere on the page.
+          for label in ('Docencia / formación', 'Festivales / instituciones'):
+              pattern = re.compile(
+                  rf'<div class="cv-section"><div class="cv-label">{re.escape(label)}</div><ul class="cv-list">.*?</ul></div>',
+                  re.S
+              )
+              s, n = pattern.subn('', s, count=1)
+              if n != 1:
+                  raise SystemExit(f'Could not remove section: {label}')
+
+          # Tighten bio note and the featured project descriptions.
+          s = s.replace(
+              'Su trabajo se ha desarrollado entre producción independiente, instituciones culturales, teatro universitario, cine y televisión, así como procesos pedagógicos de actuación, escritura y dirección.',
+              'Su trabajo se desplaza entre creación independiente, instituciones culturales, cine, televisión y pedagogía escénica.'
+          )
+          s = s.replace(
+              'Wajdi Mouawad · Escena Protocolo · Monterrey. Una puesta atravesada por memoria, violencia e historia familiar.',
+              'Wajdi Mouawad · Escena Protocolo · Monterrey.'
+          )
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit editorial pass
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Prune portfolio credits and correct Yerbabuena"
+            git push
+          fi
